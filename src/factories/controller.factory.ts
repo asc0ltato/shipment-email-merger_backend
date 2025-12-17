@@ -4,7 +4,7 @@ import { AuthService } from '@/services/auth/auth.service';
 import { AuthValidationService } from '@/services/auth/auth-validation.service';
 import { AuthUrlService } from '@/services/auth/auth-url.service';
 import { EmailGroupRepository, EmailRepository, AttachmentRepository, UserRepository, SummaryRepository } from '@/repositories';
-import { DeepseekService } from '@/services/ai/deepseek.service';
+import { GeminiService } from '@/services/ai/gemini.service';
 
 import { OAuthController } from '@/controllers/oauth.controller';
 import { EmailController } from '@/controllers/email.controller';
@@ -28,7 +28,7 @@ export class ControllerFactory {
     private static userInfoService = new UserInfo();
     private static authValidationService = new AuthValidationService();
     private static authUrlService = new AuthUrlService();
-    private static deepseekService = DeepseekService.getInstance();
+    private static geminiService = GeminiService.getInstance();
 
     private static requestLoggerService = new RequestLogger();
 
@@ -114,7 +114,7 @@ export class ControllerFactory {
             summaryRepo
         );
         const attachmentService = new AttachmentService(attachmentRepo);
-        const aiAnalysisService = new AiAnalysisService(this.deepseekService, emailGroupRepo, summaryService);
+        const aiAnalysisService = new AiAnalysisService(this.geminiService, emailGroupRepo, summaryService);
 
         return new EmailGroupController(
             authService,

@@ -12,7 +12,7 @@ database.initialize().then(() => {
 
     setTimeout(() => {
         try {
-            AutoSyncInitializer.startAutoSync('06:03');
+            AutoSyncInitializer.startAutoSync('08:00');
             logger.info('Daily auto sync scheduled successfully for 08:00');
         } catch (error) {
             logger.error('Failed to start auto sync:', error);
@@ -46,7 +46,7 @@ const getCorsOrigins = (): string[] => {
 app.use(cors({
     origin: (origin, callback) => {
         const allowedOrigins = getCorsOrigins();
-        
+
         if (!origin || origin === 'null') {
             logger.debug('CORS: Allowing request without origin (null)');
             return callback(null, true);

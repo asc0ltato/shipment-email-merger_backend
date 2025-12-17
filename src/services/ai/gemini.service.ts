@@ -4,8 +4,8 @@ import { ShipmentRequest } from '@/models/summary';
 import { logger } from '@/utils';
 import { EmailGroupId } from '@/utils/email-group-id';
 
-export class DeepseekService {
-    private static instance: DeepseekService;
+export class GeminiService {
+    private static instance: GeminiService;
     private modelName: string = 'gemini-2.5-flash';
     private apiKey: string = '';
     private isEnabled: boolean = false;
@@ -15,15 +15,14 @@ export class DeepseekService {
         this.emailGroupIdService = new EmailGroupId();
     }
 
-    public static getInstance(): DeepseekService {
-        if (!DeepseekService.instance) {
-            DeepseekService.instance = new DeepseekService();
-            // Инициализация асинхронная, но не блокируем создание экземпляра
-            DeepseekService.instance.initialize().catch(err => {
+    public static getInstance(): GeminiService {
+        if (!GeminiService.instance) {
+            GeminiService.instance = new GeminiService();
+            GeminiService.instance.initialize().catch(err => {
                 logger.error('Failed to initialize Gemini service:', err);
             });
         }
-        return DeepseekService.instance;
+        return GeminiService.instance;
     }
 
     private async initialize(): Promise<void> {
@@ -48,7 +47,6 @@ export class DeepseekService {
         }
     }
 
-    // ДОБАВЛЕН МЕТОД formatEmailContext
     private formatEmailContext(emails: IEmail[]): string {
         return emails
             .map((email, index) => {
@@ -180,12 +178,10 @@ export class DeepseekService {
         } catch (error: any) {
             logger.error('Structured AI analysis error:', error);
             
-            // Логируем детали ошибки от API
             if (error.response?.data) {
                 logger.error('Gemini API error details:', JSON.stringify(error.response.data, null, 2));
             }
 
-            // Проверяем ошибки API
             if (error.response?.status === 400 || error.response?.status === 401) {
                 const errorData = error.response?.data?.error;
                 const errorMessage = errorData?.message || error.response?.data?.message || error.message;
@@ -226,7 +222,7 @@ export class DeepseekService {
             ИНСТРУКЦИИ ПО ПОИСКУ ИНФОРМАЦИИ:
 
             1. ID ЗАКАЗА (поле "name"):
-            ГДЕ ИСКАТЬ: тема письма
+            ГДЕ ИСКАТЬ: ТОЛЬКО тема письма (Subject), НЕ ищи в теле письма
             ПАТТЕРНЫ: 
             - Shipment #123456, Shipment #784512, Shipment #987123 (формат: "Shipment" + "#" + 6-8 цифр)
             - "Заказ Shipment #123", "Order: Shipment #456", "Номер: Shipment #789"
@@ -234,7 +230,8 @@ export class DeepseekService {
             ВАЖНО: 
             - Извлекай ТОЛЬКО ЦИФРЫ из ID заказа (без "Shipment", без "#", без пробелов)
             - Если найден "Shipment #123456", то name должен быть "123456" (только цифры)
-            - Если ID не найден, используй пустую строку ""
+            - Если ID не найден в теме письма, используй пустую строку ""
+            - НЕ ищи ID в теле письма, только в теме (Subject)
 
             2. ДАТЫ ОТПРАВКИ ГРУЗА (shipping_date_from/to):
             ГДЕ ИСКАТЬ: тело письма 
@@ -286,16 +283,34 @@ export class DeepseekService {
             - "Доставить: Гродно, ул. Ожешко, 15, можно 18-20 декабря с 9:00 до 18:00"
             - "Адрес получения: г. Гродно, ул. Ожешко, д. 15, принимаем 18-20.12 с 9 до 18"
 
-            8. ГРУЗ (contents[].name и contents[].quantity):
+           8. ГРУЗ (contents[].name и contents[].quantity):
             ГДЕ ИСКАТЬ: тело письма, тема
             КЛЮЧЕВЫЕ СЛОВА: "груз", "товар", "наименование", "описание груза", "cargo", "goods", "shipment"
             ЧТО ИСКАТЬ:
-            - name: "Электронные компоненты", "Промышленное оборудование", "Бытовая техника" (ОБЯЗАТЕЛЬНОЕ ПОЛЕ)
-            - quantity: "1 шт", "количество: 5", "5 единиц" (ОБЯЗАТЕЛЬНОЕ ПОЛЕ, минимум 1)
-            ПРИМЕРЫ: 
-            - "Груз: Электронные компоненты, 1 шт"
-            - "Товар: Промышленное оборудование, количество: 5 единиц"
-            - "Cargo: Бытовая техника, 3 шт"
+            - name: ЛЮБОЕ описание груза из письма. Может быть:
+            * Общее: "готовая текстильная продукция", "одежда весенней коллекции"
+            * Конкретное: "Пальто женские", "Платья", "Блузки", "Брюки"
+            * Даже если несколько видов - создай отдельные элементы массива
+            - quantity: ИЗВЛЕКАЙ ЧИСЛО из текста, даже если есть "шт":
+            * "50 шт" -> quantity: 50
+            * "количество: 100" -> quantity: 100  
+            * "200 единиц" -> quantity: 200
+            * Если количество не указано, но есть название груза - используй quantity: 1
+            
+            ПРИМЕР ИЗ ПИСЬМА:
+            "Состав груза:
+            Пальто женские: 50 шт
+            Платья: 100 шт  
+            Блузки: 200 шт
+            Брюки: 150 шт"
+            
+            ДОЛЖНО БЫТЬ В JSON:
+            "contents": [
+                { "name": "Пальто женские", "quantity": 50 },
+                { "name": "Платья", "quantity": 100 },
+                { "name": "Блузки", "quantity": 200 },
+                { "name": "Брюки", "quantity": 150 }
+            ]
 
             9. ВИД ПЕРЕВОЗКИ/ТРАНСПОРТА (modes[].name):
             ГДЕ ИСКАТЬ: тело письма, тема
@@ -393,10 +408,10 @@ export class DeepseekService {
                         "time_from": "время начала для адреса - с какого часа можно доставить груз (null если не указано)",
                         "time_to": "время окончания для адреса - до какого часа можно доставить груз (null если не указано)"
                     },
-                    "contents": [
+                   "contents": [
                         {
-                            "name": "название груза (ОБЯЗАТЕЛЬНОЕ ПОЛЕ, строка, например: Одежда, паллеты с размерами, например 1200x1000x1500)",
-                            "quantity": "количество груза (ОБЯЗАТЕЛЬНОЕ ПОЛЕ, ЧИСЛО, минимум 1)"
+                            "name": "название груза (МОЖЕТ БЫТЬ строкой или null, если не найден, например: 'Электронные компоненты', 'Промышленное оборудование')",
+                            "quantity": "количество груза (МОЖЕТ БЫТЬ строкой или числом или null, если не указано, например: '50 шт', 50, 'количество: 5')"
                         }
                     ]
                 }
@@ -442,7 +457,6 @@ export class DeepseekService {
                 }
             );
 
-            // Gemini API возвращает ответ в формате: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
             if (!response.data.candidates || 
                 !response.data.candidates[0] || 
                 !response.data.candidates[0].content || 

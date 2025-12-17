@@ -20,7 +20,8 @@ export class EmailFullSyncService {
             logger.info('Starting full email sync', { options, userId });
 
             const { EmailProcessorService } = await import('./email-processor.service');
-            const emailProcessor = new EmailProcessorService(emailFetcher);
+            const emailGroupRepo = this.emailBaseService.getEmailGroupRepository();
+            const emailProcessor = new EmailProcessorService(emailFetcher, emailGroupRepo);
 
             const { emails, emailGroups, parsedEmails } = await emailProcessor.getGroupedEmailGroups(options);
 

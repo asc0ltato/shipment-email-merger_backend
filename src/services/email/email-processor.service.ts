@@ -3,6 +3,7 @@ import { IEmailGroup } from '@/models/email-group';
 import { EmailFetcherService, FetchedEmail } from './email-fetcher.service';
 import { EmailParserService } from './email-parser.service';
 import { EmailGrouperService } from './email-grouper.service';
+import { EmailGroupRepository } from '@/repositories/email-group.repository';
 import { logger } from '@/utils';
 
 export interface ProcessResult {
@@ -14,12 +15,15 @@ export interface ProcessResult {
 export class EmailProcessorService {
     private emailParser: EmailParserService;
     private emailGrouper: EmailGrouperService;
+    private emailGroupRepo: EmailGroupRepository | null = null;
 
     constructor(
         private emailFetcher: EmailFetcherService,
+        emailGroupRepo?: EmailGroupRepository
     ) {
         this.emailParser = new EmailParserService();
         this.emailGrouper = new EmailGrouperService();
+        this.emailGroupRepo = emailGroupRepo || null;
     }
 
     async getGroupedEmailGroups(options: {
@@ -32,19 +36,35 @@ export class EmailProcessorService {
         try {
         await this.emailFetcher.connect();
 
-        // Получение начальных писем
         const initialRawEmails = await this.emailFetcher.fetchEmailsFilteredByEmailGroupId(options);
         logger.info(`Received ${initialRawEmails.length} filtered raw emails with email group IDs`);
 
-        if (initialRawEmails.length === 0) {
+        const targetEmailGroupIds = await this.extractEmailGroupIdsFromFetched(initialRawEmails);
+        
+        if (this.emailGroupRepo) {
+            try {
+                const existingGroups = await this.emailGroupRepo.getAllEmailGroups();
+                existingGroups.forEach((group: IEmailGroup) => {
+                    if (group.emailGroupId) {
+                        targetEmailGroupIds.add(group.emailGroupId);
+                    }
+                });
+                logger.info(`Added ${existingGroups.length} existing groups from database for extended search`);
+            } catch (error) {
+                logger.warn('Could not fetch existing groups for extended search:', error);
+            }
+        }
+        
+   
+        if (targetEmailGroupIds.size === 0) {
+            logger.info('No email groups found for processing');
             return { emails: [], emailGroups: [], parsedEmails: [] };
         }
-
-        // Расширенный поиск
-        const targetEmailGroupIds = await this.extractEmailGroupIdsFromFetched(initialRawEmails);
+        
         const extendedEmails = await this.fetchExtendedEmails(targetEmailGroupIds);
+        
+        logger.info(`Extended search found ${extendedEmails.length} additional emails for ${targetEmailGroupIds.size} groups`);
 
-        // Объединение и парсинг
         const finalRawEmails = this.mergeFetchedEmails(initialRawEmails, extendedEmails);
         const parsedEmails = await this.parseFetchedEmails(finalRawEmails);
 

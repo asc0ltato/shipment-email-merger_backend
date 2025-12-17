@@ -1,4 +1,4 @@
-import { DeepseekService } from './deepseek.service';
+import { GeminiService } from './gemini.service';
 import { EmailGroupRepository } from '@/repositories';
 import { SummaryService } from '../summary/summary.service';
 import { logger } from '@/utils';
@@ -11,7 +11,7 @@ export class AiAnalysisService {
     private emailGroupIdService: EmailGroupId;
 
     constructor(
-        private deepseekService: DeepseekService,
+        private geminiService: GeminiService,
         private emailGroupRepo: EmailGroupRepository,
         private summaryService: SummaryService
     ) {
@@ -78,10 +78,10 @@ export class AiAnalysisService {
             let summaryText: string;
 
             try {
-                structuredData = await this.deepseekService.generateStructuredEmailGroupData(emailGroupData.emails);
-                summaryText = this.deepseekService.formatStructuredDataToText(structuredData);
+                structuredData = await this.geminiService.generateStructuredEmailGroupData(emailGroupData.emails);
+                summaryText = this.geminiService.formatStructuredDataToText(structuredData);
 
-                const hasUsefulData = this.deepseekService.isMeaningfulAnalysis(structuredData);
+                const hasUsefulData = this.geminiService.isMeaningfulAnalysis(structuredData);
 
                 if (!hasUsefulData) {
                     logger.warn('AI analysis completed but no useful information found in emails');

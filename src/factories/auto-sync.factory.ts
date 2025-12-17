@@ -6,7 +6,7 @@ import { EmailFullSyncService } from '@/services/email/email-full-sync.service';
 import { EmailGroupRepository, EmailRepository, UserRepository, SummaryRepository } from '@/repositories';
 import { database } from '@/config/database.init';
 import { logger } from '@/utils';
-import { DeepseekService } from '@/services/ai/deepseek.service';
+import { GeminiService } from '@/services/ai/gemini.service';
 import { AiAnalysisService } from '@/services/ai/ai-analysis.service';
 import { SummaryService } from '@/services/summary/summary.service';
 
@@ -25,10 +25,10 @@ export class AutoSyncFactory {
             const emailFullSyncService = new EmailFullSyncService(emailBaseService);
             const emailViewService = new EmailViewService(emailRepo);
 
-            const deepseekService = DeepseekService.getInstance();
+            const geminiService = GeminiService.getInstance();
             const summaryService = new SummaryService(summaryRepo);
             const aiAnalysisService = new AiAnalysisService(
-                deepseekService,
+                geminiService,
                 emailGroupRepo,
                 summaryService
             );

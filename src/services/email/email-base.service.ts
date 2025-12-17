@@ -66,11 +66,31 @@ export class EmailBaseService {
                 }
             }
 
+            if (savedCount > 0) {
+                await this.updateGroupTimestamp(emailGroupId);
+            }
+
             logger.info(`Saved ${savedCount} NEW emails for group: ${emailGroupId}`);
             return savedCount;
         } catch (error) {
             logger.error(`Error saving emails for group ${emailGroupId}:`, error);
             throw error;
+        }
+    }
+
+    private async updateGroupTimestamp(emailGroupId: string): Promise<void> {
+        try {
+            const existingGroup = await this.emailGroupRepo.getEmailGroupByEmailGroupId(emailGroupId);
+            if (existingGroup) {
+                await this.emailGroupRepo.saveEmailGroup({
+                    emailGroupId: existingGroup.emailGroupId,
+                    userId: existingGroup.userId,
+                    updatedAt: new Date()
+                });
+                logger.debug(`Updated timestamp for group: ${emailGroupId}`);
+            }
+        } catch (error) {
+            logger.error(`Error updating timestamp for group ${emailGroupId}:`, error);
         }
     }
 
